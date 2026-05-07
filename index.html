@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Operation Chisel</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #050A0F;
@@ -73,8 +73,6 @@
   .badge-date { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
   .badge-rest { background: var(--bg2); color: var(--text3); border: 1px solid var(--border); }
   .badge-school { background: rgba(0,191,255,0.1); color: var(--blue); border: 1px solid rgba(0,191,255,0.3); }
-  .badge-saving { background: rgba(255,215,0,0.1); color: var(--yellow); border: 1px solid rgba(255,215,0,0.3); }
-  .badge-saved { background: rgba(0,255,127,0.1); color: var(--green); border: 1px solid rgba(0,255,127,0.3); }
 
   .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent); margin: 1.25rem 0 0.5rem; display: flex; align-items: center; gap: 8px; font-family: 'SF Mono', monospace; }
   .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
@@ -244,7 +242,7 @@
       <button class="nav-btn" id="next-btn" onclick="changeDay(1)">Next →</button>
     </div>
     <button class="save-btn" id="save-btn" onclick="saveDay()">⬡ COMMIT DAY ⬡</button>
-    <div class="sync-status" id="sync-status">READY</div>
+    <div class="sync-status" id="sync-status">LOADING...</div>
   </div>
 
   <div class="view" id="tab-overview">
@@ -269,9 +267,12 @@
 </div>
 
 <script>
-// CONFIG
-const SUPABASE_URL = 'https://dctqszbbcktkbwescxms.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_RIGRv2SKIqG6ZWZP2rMUlw_9K7-Aw-f';
+const { createClient } = supabase;
+const sb = createClient(
+  'https://dctqszbbcktkbwescxms.supabase.co',
+  'sb_publishable_RIGRv2SKIqG6ZWZP2rMUlw_9K7-Aw-f'
+);
+
 const USER_ID = 'aman_chisel_2026';
 const START = new Date('2026-05-07');
 const TOTAL = 50;
@@ -326,32 +327,11 @@ let data = {};
 let currentDay = Math.max(0, Math.min(TOTAL - 1, Math.floor((Date.now() - START.getTime()) / 86400000)));
 let saveTimer = null;
 
-// SUPABASE
-async function dbGet(dayNum) {
-  try {
-    const res = await axios.get(`${SUPABASE_URL}/rest/v1/chisel_logs?user_id=eq.${USER_ID}&day_number=eq.${dayNum}&select=*`, {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-    });
-    return res.data[0] || null;
-  } catch(e) { return null; }
-}
-
-async function dbUpsert(dayNum, payload) {
-  try {
-    await axios.post(`${SUPABASE_URL}/rest/v1/chisel_logs`, 
-      { user_id: USER_ID, day_number: dayNum, ...payload, updated_at: new Date().toISOString() },
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' } }
-    );
-    return true;
-  } catch(e) { return false; }
-}
-
 async function loadAllDays() {
   try {
-    const res = await axios.get(`${SUPABASE_URL}/rest/v1/chisel_logs?user_id=eq.${USER_ID}&select=*&order=day_number`, {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-    });
-    res.data.forEach(row => {
+    const { data: rows, error } = await sb.from('chisel_logs').select('*').eq('user_id', USER_ID);
+    if (error) throw error;
+    rows.forEach(row => {
       data[row.day_number] = {
         checks: row.checks || {},
         whoop: row.whoop,
@@ -361,10 +341,27 @@ async function loadAllDays() {
         journal: row.journal
       };
     });
-  } catch(e) { console.log('Load failed, using local cache'); }
+  } catch(e) {
+    console.error('Load error:', e);
+  }
 }
 
-// SCORING
+async function upsertDay(dayNum) {
+  const dd = data[dayNum] || {};
+  const { error } = await sb.from('chisel_logs').upsert({
+    user_id: USER_ID,
+    day_number: dayNum,
+    checks: dd.checks || {},
+    whoop: dd.whoop || null,
+    whoop_score: dd.whoop_score ? parseFloat(dd.whoop_score) : null,
+    sleep: dd.sleep ? parseFloat(dd.sleep) : null,
+    weight: dd.weight ? parseFloat(dd.weight) : null,
+    journal: dd.journal || null,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id,day_number' });
+  return !error;
+}
+
 function calcScore(d) {
   const checks = (data[d] && data[d].checks) || {};
   let score = 0, penalties = [];
@@ -395,7 +392,6 @@ function getScoreLabel(s) {
   return 'INITIALISING';
 }
 
-// RENDER
 function getDate(d) { const dt = new Date(START); dt.setDate(dt.getDate() + d); return dt; }
 function getDow(d) { return getDate(d).getDay(); }
 function isRestDay(d) { return getDow(d) === 6; }
@@ -428,7 +424,7 @@ function renderHabitSection(habits, containerId, isPenalty) {
     name.className = 'habit-name';
     name.textContent = h.label;
     left.appendChild(name);
-    if (h.pts || h.penalty) {
+    if (h.pts > 0 || h.penalty) {
       const pts = document.createElement('span');
       pts.className = 'habit-pts' + (isPenalty ? ' penalty' : '');
       pts.textContent = isPenalty ? '−' + h.penalty + ' pts if violated' : '+' + h.pts + ' pts';
@@ -507,6 +503,7 @@ function saveMeta(key, val) {
 
 function autoSave() {
   clearTimeout(saveTimer);
+  document.getElementById('sync-status').textContent = 'UNSAVED CHANGES...';
   saveTimer = setTimeout(saveDay, 2000);
 }
 
@@ -515,16 +512,8 @@ async function saveDay() {
   const btn = document.getElementById('save-btn');
   const status = document.getElementById('sync-status');
   btn.disabled = true;
-  status.textContent = 'SYNCING TO CLOUD...';
-  const dd = data[currentDay] || {};
-  const ok = await dbUpsert(currentDay, {
-    checks: dd.checks || {},
-    whoop: dd.whoop || null,
-    whoop_score: dd.whoop_score ? parseFloat(dd.whoop_score) : null,
-    sleep: dd.sleep ? parseFloat(dd.sleep) : null,
-    weight: dd.weight ? parseFloat(dd.weight) : null,
-    journal: dd.journal || null
-  });
+  status.textContent = 'SYNCING...';
+  const ok = await upsertDay(currentDay);
   btn.disabled = false;
   if (ok) {
     btn.textContent = '✓ COMMITTED';
@@ -622,7 +611,6 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
 }
 
-// INIT
 async function init() {
   document.getElementById('sync-status').textContent = 'LOADING FROM CLOUD...';
   await loadAllDays();
