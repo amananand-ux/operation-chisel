@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operation Chisel</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"></script>
+<style>
+  :root {
+    --bg: #050A0F;
+    --bg2: #0A1520;
+    --bg3: #0F1E2E;
+    --accent: #FF4500;
+    --accent2: #FF6A00;
+    --accent-glow: rgba(255,69,0,0.3);
+    --blue: #00BFFF;
+    --blue-dim: rgba(0,191,255,0.15);
+    --text: #E8F4FD;
+    --text2: #7BAACC;
+    --text3: #3D6A8A;
+    --border: #0F2A3F;
+    --border2: #1A3A55;
+    --green: #00FF7F;
+    --yellow: #FFD700;
+    --red-alert: #FF2222;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .app { max-width: 480px; margin: 0 auto; background: var(--bg); min-height: 100vh; position: relative; }
+  .app::before { content: ''; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 480px; height: 100vh; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,191,255,0.012) 2px, rgba(0,191,255,0.012) 4px); pointer-events: none; z-index: 0; }
+
+  .header { padding: 1.25rem 1.25rem 1rem; border-bottom: 1px solid var(--border2); background: var(--bg2); position: relative; overflow: hidden; }
+  .header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), var(--blue), transparent); }
+  .header-top { display: flex; justify-content: space-between; align-items: center; }
+  .title { font-size: 20px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; font-family: 'SF Mono', monospace; }
+  .title-op { color: var(--text2); }
+  .title-chisel { color: var(--accent); text-shadow: 0 0 20px var(--accent-glow); }
+  .day-badge { font-size: 11px; color: var(--blue); font-weight: 700; background: var(--blue-dim); padding: 4px 12px; border-radius: 20px; border: 1px solid rgba(0,191,255,0.3); letter-spacing: 0.05em; font-family: 'SF Mono', monospace; }
+  .subtitle { font-size: 11px; color: var(--text3); margin-top: 5px; letter-spacing: 0.08em; text-transform: uppercase; font-family: 'SF Mono', monospace; }
+  .progress-wrap { margin-top: 1rem; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); margin-bottom: 4px; letter-spacing: 0.06em; font-family: 'SF Mono', monospace; }
+  .progress-bar { height: 3px; background: var(--border); border-radius: 2px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width 0.5s; box-shadow: 0 0 8px var(--accent-glow); }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--border2); background: var(--bg2); }
+  .tab { flex: 1; padding: 0.7rem 0; font-size: 11px; font-weight: 700; text-align: center; cursor: pointer; color: var(--text3); border-bottom: 2px solid transparent; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; letter-spacing: 0.08em; text-transform: uppercase; font-family: 'SF Mono', monospace; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); text-shadow: 0 0 10px var(--accent-glow); }
+
+  .view { display: none; padding: 1.25rem; position: relative; z-index: 1; }
+  .view.active { display: block; }
+
+  .score-display { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; position: relative; overflow: hidden; }
+  .score-display::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), var(--blue)); }
+  .score-main { display: flex; justify-content: space-between; align-items: center; }
+  .score-number { font-size: 52px; font-weight: 700; font-family: 'SF Mono', monospace; line-height: 1; transition: color 0.3s; }
+  .score-number.excellent { color: var(--green); text-shadow: 0 0 20px rgba(0,255,127,0.4); }
+  .score-number.good { color: var(--blue); text-shadow: 0 0 20px rgba(0,191,255,0.4); }
+  .score-number.okay { color: var(--yellow); text-shadow: 0 0 20px rgba(255,215,0,0.4); }
+  .score-number.poor { color: var(--accent); text-shadow: 0 0 20px var(--accent-glow); }
+  .score-number.bad { color: var(--red-alert); text-shadow: 0 0 20px rgba(255,34,34,0.4); }
+  .score-right { text-align: right; }
+  .score-max { font-size: 11px; color: var(--text3); font-family: 'SF Mono', monospace; }
+  .score-label { font-size: 12px; color: var(--text2); font-family: 'SF Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 3px; }
+  .score-bar-wrap { margin-top: 1rem; height: 4px; background: var(--border); border-radius: 2px; }
+  .score-bar { height: 100%; border-radius: 2px; transition: width 0.5s, background 0.5s; }
+  .penalty-display { margin-top: 0.75rem; font-size: 11px; font-family: 'SF Mono', monospace; color: var(--red-alert); min-height: 16px; }
+
+  .day-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+  .day-label { font-size: 22px; font-weight: 700; color: var(--text); font-family: 'SF Mono', monospace; }
+  .day-label span { color: var(--accent); }
+  .day-badges { display: flex; gap: 5px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 4px; letter-spacing: 0.06em; text-transform: uppercase; font-family: 'SF Mono', monospace; }
+  .badge-date { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
+  .badge-rest { background: var(--bg2); color: var(--text3); border: 1px solid var(--border); }
+  .badge-school { background: rgba(0,191,255,0.1); color: var(--blue); border: 1px solid rgba(0,191,255,0.3); }
+  .badge-saving { background: rgba(255,215,0,0.1); color: var(--yellow); border: 1px solid rgba(255,215,0,0.3); }
+  .badge-saved { background: rgba(0,255,127,0.1); color: var(--green); border: 1px solid rgba(0,255,127,0.3); }
+
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent); margin: 1.25rem 0 0.5rem; display: flex; align-items: center; gap: 8px; font-family: 'SF Mono', monospace; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
+
+  .habit-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); background: transparent; transition: background 0.15s; border-radius: 4px; margin-bottom: 2px; }
+  .habit-row:hover { background: var(--bg3); }
+  .habit-left { display: flex; flex-direction: column; gap: 1px; }
+  .habit-name { font-size: 14px; color: var(--text); font-weight: 500; }
+  .habit-pts { font-size: 10px; color: var(--text3); font-family: 'SF Mono', monospace; }
+  .habit-pts.penalty { color: var(--red-alert); }
+  .check-btn { width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--border2); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .check-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+  .check-btn.checked { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+  .check-btn.checked::after { content: '✓'; color: #fff; font-size: 13px; font-weight: 700; display: block; }
+  .check-btn.penalty-btn { border-color: rgba(255,34,34,0.4); }
+  .check-btn.penalty-btn:hover { border-color: var(--red-alert); background: rgba(255,34,34,0.15); }
+  .check-btn.penalty-btn.checked { background: var(--red-alert); border-color: var(--red-alert); box-shadow: 0 0 10px rgba(255,34,34,0.4); }
+
+  .metric-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .metric-label { font-size: 14px; color: var(--text); font-weight: 500; }
+  .metric-unit { font-size: 10px; color: var(--text3); margin-left: 5px; font-family: 'SF Mono', monospace; }
+  .metric-input { width: 76px; height: 34px; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg2); color: var(--blue); font-size: 14px; font-weight: 700; text-align: center; padding: 0 4px; outline: none; font-family: 'SF Mono', monospace; }
+  .metric-input:focus { border-color: var(--blue); box-shadow: 0 0 8px rgba(0,191,255,0.2); }
+  .metric-input::placeholder { color: var(--text3); font-weight: 400; }
+
+  .whoop-btns { display: flex; gap: 5px; }
+  .whoop-btn { padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border2); font-size: 11px; font-weight: 700; cursor: pointer; background: transparent; color: var(--text3); transition: all 0.15s; font-family: 'SF Mono', monospace; text-transform: uppercase; }
+  .whoop-btn.sel-red { background: rgba(255,34,34,0.15); color: var(--red-alert); border-color: var(--red-alert); }
+  .whoop-btn.sel-yellow { background: rgba(255,215,0,0.15); color: var(--yellow); border-color: var(--yellow); }
+  .whoop-btn.sel-green { background: rgba(0,255,127,0.15); color: var(--green); border-color: var(--green); }
+
+  .section-note { font-size: 11px; color: var(--text3); font-family: 'SF Mono', monospace; padding: 0.4rem 0.75rem 0.25rem; }
+
+  .nav-btns { display: flex; gap: 8px; margin-top: 1.25rem; }
+  .nav-btn { flex: 1; padding: 0.7rem; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg2); color: var(--text2); font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; font-family: 'SF Mono', monospace; letter-spacing: 0.06em; text-transform: uppercase; }
+  .nav-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .nav-btn:disabled { opacity: 0.25; cursor: default; }
+  .save-btn { width: 100%; margin-top: 0.75rem; padding: 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: linear-gradient(135deg, rgba(255,69,0,0.15), rgba(255,106,0,0.15)); color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: 0.15em; text-transform: uppercase; font-family: 'SF Mono', monospace; transition: all 0.2s; box-shadow: 0 0 15px var(--accent-glow); }
+  .save-btn:hover { background: linear-gradient(135deg, rgba(255,69,0,0.3), rgba(255,106,0,0.3)); }
+  .save-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .journal-area { width: 100%; min-height: 80px; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg2); color: var(--text); font-size: 13px; padding: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; resize: vertical; margin-top: 0.25rem; outline: none; line-height: 1.6; }
+  .journal-area:focus { border-color: var(--blue); }
+  .journal-area::placeholder { color: var(--text3); }
+
+  .grid-wrap { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+  .grid-day { aspect-ratio: 1; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); color: var(--text3); transition: all 0.15s; font-family: 'SF Mono', monospace; }
+  .grid-day:hover { border-color: var(--blue); color: var(--blue); }
+  .grid-day.today { border-color: var(--blue) !important; color: var(--blue); box-shadow: 0 0 8px rgba(0,191,255,0.3); }
+  .grid-day.s110 { background: var(--green); color: #000; border-color: var(--green); }
+  .grid-day.s90 { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .grid-day.s70 { background: rgba(255,69,0,0.35); color: var(--accent2); border-color: rgba(255,69,0,0.5); }
+  .grid-day.s50 { background: var(--bg3); color: var(--text2); border-color: var(--border2); }
+  .grid-day.slow { background: rgba(255,34,34,0.15); color: var(--red-alert); border-color: rgba(255,34,34,0.3); }
+  .grid-day.rest-day { background: var(--bg); color: var(--border2); }
+
+  .legend { display: flex; gap: 10px; margin-top: 1rem; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text3); font-family: 'SF Mono', monospace; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .streak-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+  .streak-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 1rem 0.75rem; text-align: center; position: relative; overflow: hidden; }
+  .streak-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), var(--blue)); }
+  .streak-num { font-size: 30px; font-weight: 700; color: var(--accent); line-height: 1; font-family: 'SF Mono', monospace; }
+  .streak-label { font-size: 10px; color: var(--text3); margin-top: 5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-family: 'SF Mono', monospace; }
+
+  .week-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; position: relative; overflow: hidden; }
+  .week-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, var(--accent), var(--blue)); }
+  .week-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: 'SF Mono', monospace; text-transform: uppercase; }
+  .week-date { font-weight: 500; color: var(--text3); font-size: 11px; text-transform: none; font-family: -apple-system, sans-serif; }
+  .week-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-bottom: 0.6rem; }
+  .week-bar { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.4s; }
+  .week-stats { display: flex; gap: 14px; flex-wrap: wrap; }
+  .week-stat { font-size: 11px; color: var(--text3); font-family: 'SF Mono', monospace; }
+  .week-stat span { color: var(--text); font-weight: 700; }
+  .week-session-track { margin-top: 0.6rem; display: flex; gap: 10px; }
+  .session-pill { font-size: 10px; font-family: 'SF Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border2); color: var(--text3); }
+  .session-pill.on-track { border-color: var(--green); color: var(--green); }
+  .session-pill.off-track { border-color: var(--red-alert); color: var(--red-alert); }
+
+  .sync-status { font-size: 10px; font-family: 'SF Mono', monospace; color: var(--text3); text-align: center; padding: 0.5rem; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-top">
+      <div class="title"><span class="title-op">OPERATION </span><span class="title-chisel">CHISEL</span></div>
+      <div class="day-badge" id="day-badge">DAY 1 / 50</div>
+    </div>
+    <div class="subtitle">07 MAY — 25 JUN 2026</div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>MISSION PROGRESS</span><span id="prog-pct">2%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:2%"></div></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('today')">Today</button>
+    <button class="tab" onclick="switchTab('overview')">Grid</button>
+    <button class="tab" onclick="switchTab('weekly')">Weekly</button>
+  </div>
+
+  <div class="view active" id="tab-today">
+    <div class="day-header">
+      <div class="day-label" id="day-label">DAY <span>01</span></div>
+    </div>
+    <div class="day-badges" id="day-badges"></div>
+
+    <div class="score-display">
+      <div class="score-main">
+        <div class="score-number" id="score-num">0</div>
+        <div class="score-right">
+          <div class="score-max">MAX 110</div>
+          <div class="score-label" id="score-label">INITIALISING</div>
+        </div>
+      </div>
+      <div class="score-bar-wrap"><div class="score-bar" id="score-bar" style="width:0%"></div></div>
+      <div class="penalty-display" id="penalty-display"></div>
+    </div>
+
+    <div class="section-title">Recovery Systems</div>
+    <div class="metric-row">
+      <span class="metric-label">Whoop status</span>
+      <div class="whoop-btns">
+        <button class="whoop-btn" id="w-red" onclick="setWhoop('red')">Red</button>
+        <button class="whoop-btn" id="w-yellow" onclick="setWhoop('yellow')">Yellow</button>
+        <button class="whoop-btn" id="w-green" onclick="setWhoop('green')">Green</button>
+      </div>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Whoop score <span class="metric-unit">%</span></span>
+      <input class="metric-input" id="whoop-score-input" type="number" min="0" max="100" placeholder="72" oninput="saveMeta('whoop_score',this.value)">
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Sleep <span class="metric-unit">HRS</span></span>
+      <input class="metric-input" id="sleep-input" type="number" min="0" max="12" step="0.5" placeholder="7.5" oninput="saveMeta('sleep',this.value)">
+    </div>
+    <div class="metric-row" style="border-bottom:none">
+      <span class="metric-label">Weight <span class="metric-unit">KG</span></span>
+      <input class="metric-input" id="weight-input" type="number" min="50" max="200" step="0.1" placeholder="103" oninput="saveMeta('weight',this.value)">
+    </div>
+
+    <div class="section-title">Morning Protocols</div>
+    <div class="section-note">One session = 10pts · Both = 20pts</div>
+    <div id="morning-habits"></div>
+
+    <div class="section-title">Evening Protocols</div>
+    <div class="section-note">Any one session = 20pts</div>
+    <div id="evening-habits"></div>
+
+    <div class="section-title">Daily Directives</div>
+    <div id="daily-habits"></div>
+
+    <div class="section-title">Work Modules</div>
+    <div id="work-habits"></div>
+
+    <div class="section-title">Abstinence Protocol</div>
+    <div class="section-note" style="color:var(--red-alert)">Violations dock your score</div>
+    <div id="abstinence-habits"></div>
+
+    <div class="section-title">Mission Log</div>
+    <textarea class="journal-area" id="journal-input" placeholder="Log today's intel..." oninput="saveMeta('journal',this.value)"></textarea>
+
+    <div class="nav-btns">
+      <button class="nav-btn" id="prev-btn" onclick="changeDay(-1)">← Prev</button>
+      <button class="nav-btn" id="next-btn" onclick="changeDay(1)">Next →</button>
+    </div>
+    <button class="save-btn" id="save-btn" onclick="saveDay()">⬡ COMMIT DAY ⬡</button>
+    <div class="sync-status" id="sync-status">READY</div>
+  </div>
+
+  <div class="view" id="tab-overview">
+    <div class="streak-row">
+      <div class="streak-card"><div class="streak-num" id="cur-streak">0</div><div class="streak-label">Streak</div></div>
+      <div class="streak-card"><div class="streak-num" id="best-streak">0</div><div class="streak-label">Best</div></div>
+      <div class="streak-card"><div class="streak-num" id="avg-score">0</div><div class="streak-label">Avg Score</div></div>
+    </div>
+    <div class="grid-wrap" id="day-grid"></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>110</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>90+</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(255,69,0,0.35)"></div>70+</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--bg3);border:1px solid var(--border2)"></div>50+</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(255,34,34,0.15);border:1px solid rgba(255,34,34,0.3)"></div>&lt;50</div>
+    </div>
+  </div>
+
+  <div class="view" id="tab-weekly">
+    <div id="weekly-cards"></div>
+  </div>
+</div>
+
+<script>
+// CONFIG
+const SUPABASE_URL = 'https://dctqszbbcktkbwescxms.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_RIGRv2SKIqG6ZWZP2rMUlw_9K7-Aw-f';
+const USER_ID = 'aman_chisel_2026';
+const START = new Date('2026-05-07');
+const TOTAL = 50;
+const SCHOOL_END = 13;
+
+const MORNING_HABITS = [
+  { id: 'pool', label: 'Pool / Swim' },
+  { id: 'liss', label: 'LISS Cardio / Stairmaster' },
+  { id: 'core_am', label: 'Core Workout' },
+];
+
+const EVENING_HABITS = [
+  { id: 'push', label: 'Push Session' },
+  { id: 'pull', label: 'Pull Session' },
+  { id: 'legs', label: 'Legs Session' },
+  { id: 'run_hiit', label: 'Run / HIIT' },
+  { id: 'hyrox', label: 'Hyrox Simulation' },
+  { id: 'long_run', label: 'Long Run' },
+  { id: 'sauna', label: 'Sauna' },
+  { id: 'steam', label: 'Steam' },
+  { id: 'cold_bath', label: 'Cold Bath' },
+];
+
+const DAILY_HABITS = [
+  { id: 'protein', label: 'Protein 180g+', pts: 10 },
+  { id: 'reading', label: 'Reading', pts: 10 },
+  { id: 'sleep_target', label: 'Lights Out by 23:30', pts: 10 },
+  { id: 'dog_walk', label: 'Dog Walk', pts: 5 },
+  { id: 'meditation', label: 'Meditation', pts: 2 },
+  { id: 'water', label: 'Water 4L+', pts: 2 },
+  { id: 'photo', label: 'Progress Photo', pts: 1 },
+  { id: 'meal_plan', label: 'Meal Plan Followed', pts: 0 },
+];
+
+const WORK_HABITS = [
+  { id: 'elder', label: 'Elder', pts: 8 },
+  { id: 'school_work', label: 'School', pts: 8 },
+  { id: 'airbnb', label: 'Airbnb', pts: 4 },
+];
+
+const ABSTINENCE = [
+  { id: 'smoked', label: 'Smoked', penalty: 20 },
+  { id: 'drank', label: 'Drank Alcohol', penalty: 15 },
+  { id: 'outside_food', label: 'Outside Food', penalty: 10 },
+];
+
+const MORNING_SESSION_IDS = ['pool', 'liss'];
+const EVENING_SESSION_IDS = ['push', 'pull', 'legs', 'run_hiit', 'hyrox', 'long_run'];
+
+let data = {};
+let currentDay = Math.max(0, Math.min(TOTAL - 1, Math.floor((Date.now() - START.getTime()) / 86400000)));
+let saveTimer = null;
+
+// SUPABASE
+async function dbGet(dayNum) {
+  try {
+    const res = await axios.get(`${SUPABASE_URL}/rest/v1/chisel_logs?user_id=eq.${USER_ID}&day_number=eq.${dayNum}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    return res.data[0] || null;
+  } catch(e) { return null; }
+}
+
+async function dbUpsert(dayNum, payload) {
+  try {
+    await axios.post(`${SUPABASE_URL}/rest/v1/chisel_logs`, 
+      { user_id: USER_ID, day_number: dayNum, ...payload, updated_at: new Date().toISOString() },
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' } }
+    );
+    return true;
+  } catch(e) { return false; }
+}
+
+async function loadAllDays() {
+  try {
+    const res = await axios.get(`${SUPABASE_URL}/rest/v1/chisel_logs?user_id=eq.${USER_ID}&select=*&order=day_number`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    res.data.forEach(row => {
+      data[row.day_number] = {
+        checks: row.checks || {},
+        whoop: row.whoop,
+        whoop_score: row.whoop_score,
+        sleep: row.sleep,
+        weight: row.weight,
+        journal: row.journal
+      };
+    });
+  } catch(e) { console.log('Load failed, using local cache'); }
+}
+
+// SCORING
+function calcScore(d) {
+  const checks = (data[d] && data[d].checks) || {};
+  let score = 0, penalties = [];
+  const morningSessions = MORNING_SESSION_IDS.filter(id => checks[id]).length;
+  if (morningSessions >= 2) score += 20;
+  else if (morningSessions === 1) score += 10;
+  if (EVENING_SESSION_IDS.some(id => checks[id])) score += 20;
+  DAILY_HABITS.forEach(h => { if (checks[h.id] && h.pts) score += h.pts; });
+  WORK_HABITS.forEach(h => { if (checks[h.id]) score += h.pts; });
+  ABSTINENCE.forEach(h => { if (checks[h.id]) { score -= h.penalty; penalties.push('-' + h.penalty + ' ' + h.label); } });
+  return { score, penalties };
+}
+
+function getScoreClass(s) {
+  if (s >= 110) return 'excellent';
+  if (s >= 90) return 'good';
+  if (s >= 70) return 'okay';
+  if (s >= 50) return 'poor';
+  return 'bad';
+}
+
+function getScoreLabel(s) {
+  if (s >= 110) return 'PERFECT DAY';
+  if (s >= 90) return 'EXCELLENT';
+  if (s >= 70) return 'SOLID';
+  if (s >= 50) return 'ACCEPTABLE';
+  if (s > 0) return 'NEEDS WORK';
+  return 'INITIALISING';
+}
+
+// RENDER
+function getDate(d) { const dt = new Date(START); dt.setDate(dt.getDate() + d); return dt; }
+function getDow(d) { return getDate(d).getDay(); }
+function isRestDay(d) { return getDow(d) === 6; }
+function isSchool(d) { return d < SCHOOL_END; }
+
+function updateScoreDisplay() {
+  const { score, penalties } = calcScore(currentDay);
+  const el = document.getElementById('score-num');
+  el.textContent = score;
+  el.className = 'score-number ' + getScoreClass(score);
+  document.getElementById('score-label').textContent = getScoreLabel(score);
+  const pct = Math.max(0, Math.min(100, (score / 110) * 100));
+  const bar = document.getElementById('score-bar');
+  bar.style.width = pct + '%';
+  const colors = { excellent: 'var(--green)', good: 'var(--blue)', okay: 'var(--yellow)', poor: 'var(--accent)', bad: 'var(--red-alert)' };
+  bar.style.background = colors[getScoreClass(score)];
+  document.getElementById('penalty-display').textContent = penalties.length ? '⚠ PENALTY: ' + penalties.join(' · ') : '';
+}
+
+function renderHabitSection(habits, containerId, isPenalty) {
+  const checks = (data[currentDay] && data[currentDay].checks) || {};
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  habits.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'habit-row';
+    const left = document.createElement('div');
+    left.className = 'habit-left';
+    const name = document.createElement('span');
+    name.className = 'habit-name';
+    name.textContent = h.label;
+    left.appendChild(name);
+    if (h.pts || h.penalty) {
+      const pts = document.createElement('span');
+      pts.className = 'habit-pts' + (isPenalty ? ' penalty' : '');
+      pts.textContent = isPenalty ? '−' + h.penalty + ' pts if violated' : '+' + h.pts + ' pts';
+      left.appendChild(pts);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'check-btn' + (isPenalty ? ' penalty-btn' : '') + (checks[h.id] ? ' checked' : '');
+    btn.onclick = () => toggle(h.id);
+    row.appendChild(left); row.appendChild(btn);
+    el.appendChild(row);
+  });
+}
+
+function renderDayBadges() {
+  const el = document.getElementById('day-badges');
+  el.innerHTML = '';
+  const dt = getDate(currentDay);
+  const dateStr = dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  const db = document.createElement('span'); db.className = 'badge badge-date'; db.textContent = dateStr.toUpperCase(); el.appendChild(db);
+  if (isRestDay(currentDay)) { const b = document.createElement('span'); b.className = 'badge badge-rest'; b.textContent = 'ACTIVE REST'; el.appendChild(b); }
+  if (isSchool(currentDay)) { const b = document.createElement('span'); b.className = 'badge badge-school'; b.textContent = 'SCHOOL'; el.appendChild(b); }
+}
+
+function renderAll() {
+  const d = currentDay;
+  const pct = Math.round((d + 1) / TOTAL * 100);
+  document.getElementById('day-badge').textContent = 'DAY ' + (d + 1) + ' / ' + TOTAL;
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent = pct + '%';
+  document.getElementById('day-label').innerHTML = 'DAY <span>' + String(d + 1).padStart(2,'0') + '</span>';
+  renderDayBadges();
+  updateScoreDisplay();
+  renderHabitSection(MORNING_HABITS, 'morning-habits', false);
+  renderHabitSection(EVENING_HABITS, 'evening-habits', false);
+  renderHabitSection(DAILY_HABITS, 'daily-habits', false);
+  renderHabitSection(WORK_HABITS, 'work-habits', false);
+  renderHabitSection(ABSTINENCE, 'abstinence-habits', true);
+  updateWhoop();
+  const dd = data[d] || {};
+  document.getElementById('sleep-input').value = dd.sleep || '';
+  document.getElementById('weight-input').value = dd.weight || '';
+  document.getElementById('whoop-score-input').value = dd.whoop_score || '';
+  document.getElementById('journal-input').value = dd.journal || '';
+  document.getElementById('prev-btn').disabled = d === 0;
+  document.getElementById('next-btn').disabled = d >= TOTAL - 1;
+  renderGrid(); renderWeekly(); renderStreaks();
+}
+
+function toggle(id) {
+  if (!data[currentDay]) data[currentDay] = {};
+  if (!data[currentDay].checks) data[currentDay].checks = {};
+  data[currentDay].checks[id] = !data[currentDay].checks[id];
+  renderAll();
+  autoSave();
+}
+
+function setWhoop(color) {
+  if (!data[currentDay]) data[currentDay] = {};
+  data[currentDay].whoop = data[currentDay].whoop === color ? null : color;
+  updateWhoop();
+  autoSave();
+}
+
+function updateWhoop() {
+  const w = (data[currentDay] || {}).whoop;
+  ['red','yellow','green'].forEach(c => {
+    document.getElementById('w-' + c).className = 'whoop-btn' + (w === c ? ' sel-' + c : '');
+  });
+}
+
+function saveMeta(key, val) {
+  if (!data[currentDay]) data[currentDay] = {};
+  data[currentDay][key] = val;
+  autoSave();
+}
+
+function autoSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDay, 2000);
+}
+
+async function saveDay() {
+  clearTimeout(saveTimer);
+  const btn = document.getElementById('save-btn');
+  const status = document.getElementById('sync-status');
+  btn.disabled = true;
+  status.textContent = 'SYNCING TO CLOUD...';
+  const dd = data[currentDay] || {};
+  const ok = await dbUpsert(currentDay, {
+    checks: dd.checks || {},
+    whoop: dd.whoop || null,
+    whoop_score: dd.whoop_score ? parseFloat(dd.whoop_score) : null,
+    sleep: dd.sleep ? parseFloat(dd.sleep) : null,
+    weight: dd.weight ? parseFloat(dd.weight) : null,
+    journal: dd.journal || null
+  });
+  btn.disabled = false;
+  if (ok) {
+    btn.textContent = '✓ COMMITTED';
+    status.textContent = 'SYNCED ✓';
+    setTimeout(() => { btn.textContent = '⬡ COMMIT DAY ⬡'; status.textContent = 'READY'; }, 2000);
+  } else {
+    status.textContent = 'SYNC FAILED — CHECK CONNECTION';
+    setTimeout(() => status.textContent = 'READY', 3000);
+  }
+}
+
+function getGridClass(score) {
+  if (score >= 110) return 's110';
+  if (score >= 90) return 's90';
+  if (score >= 70) return 's70';
+  if (score >= 50) return 's50';
+  return 'slow';
+}
+
+function renderGrid() {
+  const grid = document.getElementById('day-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < TOTAL; i++) {
+    const div = document.createElement('div');
+    div.className = 'grid-day';
+    div.textContent = i + 1;
+    if (i === currentDay) div.classList.add('today');
+    if (isRestDay(i)) div.classList.add('rest-day');
+    else {
+      const checks = data[i] && data[i].checks;
+      if (checks && Object.values(checks).some(v => v)) {
+        const { score } = calcScore(i);
+        div.classList.add(getGridClass(score));
+      }
+    }
+    div.onclick = () => { currentDay = i; renderAll(); switchTab('today'); };
+    grid.appendChild(div);
+  }
+}
+
+function renderWeekly() {
+  const c = document.getElementById('weekly-cards');
+  c.innerHTML = '';
+  for (let w = 0; w < Math.ceil(TOTAL / 7); w++) {
+    const start = w * 7, end = Math.min(start + 7, TOTAL);
+    let totalScore = 0, activeDays = 0, poolCount = 0, lissCount = 0;
+    for (let d = start; d < end; d++) {
+      const checks = data[d] && data[d].checks;
+      if (checks && Object.values(checks).some(v => v)) {
+        const { score } = calcScore(d);
+        totalScore += Math.max(0, score);
+        activeDays++;
+        if (checks.pool) poolCount++;
+        if (checks.liss) lissCount++;
+      }
+    }
+    const avgScore = activeDays ? Math.round(totalScore / activeDays) : 0;
+    const fmt = d => getDate(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const days = Array.from({length: end - start}, (_, i) => start + i);
+    const hasSchool = days.some(isSchool);
+    let badges = hasSchool ? '<span class="badge badge-school">SCHOOL</span>' : '';
+    const poolClass = poolCount >= 5 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
+    const lissClass = lissCount >= 5 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
+    const card = document.createElement('div');
+    card.className = 'week-card';
+    card.innerHTML = '<div class="week-title">WK ' + (w + 1) + ' <span class="week-date">' + fmt(start) + ' – ' + fmt(end - 1) + '</span>' + badges + '</div>' +
+      '<div class="week-bar-wrap"><div class="week-bar" style="width:' + Math.min(100, (avgScore / 110) * 100) + '%"></div></div>' +
+      '<div class="week-stats"><div class="week-stat"><span>' + avgScore + '</span> avg score</div><div class="week-stat"><span>' + activeDays + '/' + (end - start) + '</span> active</div></div>' +
+      '<div class="week-session-track"><span class="session-pill ' + poolClass + '">Pool ' + poolCount + '/5</span><span class="session-pill ' + lissClass + '">LISS ' + lissCount + '/5</span></div>';
+    c.appendChild(card);
+  }
+}
+
+function renderStreaks() {
+  let cur = 0, best = 0, temp = 0, totalScore = 0, scoredDays = 0;
+  for (let i = 0; i <= currentDay; i++) {
+    const checks = data[i] && data[i].checks;
+    if (!checks || !Object.values(checks).some(v => v)) { if (i < currentDay) { temp = 0; cur = 0; } continue; }
+    const { score } = calcScore(i);
+    if (score >= 50) { temp++; best = Math.max(best, temp); cur = temp; }
+    else { temp = 0; cur = 0; }
+    totalScore += Math.max(0, score);
+    scoredDays++;
+  }
+  document.getElementById('cur-streak').textContent = cur;
+  document.getElementById('best-streak').textContent = best;
+  document.getElementById('avg-score').textContent = scoredDays ? Math.round(totalScore / scoredDays) : 0;
+}
+
+function changeDay(dir) { currentDay = Math.max(0, Math.min(TOTAL - 1, currentDay + dir)); renderAll(); }
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['today','overview','weekly'][i] === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// INIT
+async function init() {
+  document.getElementById('sync-status').textContent = 'LOADING FROM CLOUD...';
+  await loadAllDays();
+  document.getElementById('sync-status').textContent = 'READY';
+  renderAll();
+}
+
+init();
+</script>
+</body>
+</html>
