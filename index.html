@@ -157,6 +157,65 @@
 </style>
 </head>
 <body>
+
+<!-- PIN LOCK -->
+<div id="lock-screen" style="position:fixed;inset:0;background:#050A0F;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.75rem;">
+  <div style="font-family:'SF Mono',monospace;font-size:20px;font-weight:700;letter-spacing:0.2em;color:#FF4500;text-shadow:0 0 20px rgba(255,69,0,0.4)">OPERATION CHISEL</div>
+  <div style="font-family:'SF Mono',monospace;font-size:11px;letter-spacing:0.15em;color:#3D6A8A;text-transform:uppercase">Enter Access Code</div>
+  <div style="display:flex;gap:14px;">
+    <div class="pd" style="width:14px;height:14px;border-radius:50%;border:2px solid #1A3A55;background:transparent;transition:all 0.15s"></div>
+    <div class="pd" style="width:14px;height:14px;border-radius:50%;border:2px solid #1A3A55;background:transparent;transition:all 0.15s"></div>
+    <div class="pd" style="width:14px;height:14px;border-radius:50%;border:2px solid #1A3A55;background:transparent;transition:all 0.15s"></div>
+    <div class="pd" style="width:14px;height:14px;border-radius:50%;border:2px solid #1A3A55;background:transparent;transition:all 0.15s"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:230px;">
+    <button onclick="pp(1)" class="pb">1</button>
+    <button onclick="pp(2)" class="pb">2</button>
+    <button onclick="pp(3)" class="pb">3</button>
+    <button onclick="pp(4)" class="pb">4</button>
+    <button onclick="pp(5)" class="pb">5</button>
+    <button onclick="pp(6)" class="pb">6</button>
+    <button onclick="pp(7)" class="pb">7</button>
+    <button onclick="pp(8)" class="pb">8</button>
+    <button onclick="pp(9)" class="pb">9</button>
+    <button onclick="pc()" class="pb" style="color:#3D6A8A;font-size:12px">CLR</button>
+    <button onclick="pp(0)" class="pb">0</button>
+    <div></div>
+  </div>
+  <div id="pin-err" style="font-family:'SF Mono',monospace;font-size:11px;color:#FF2222;letter-spacing:0.1em;min-height:16px;"></div>
+</div>
+<style>
+.pb { padding:1rem;border:1px solid #1A3A55;border-radius:8px;background:#0A1520;color:#E8F4FD;font-size:20px;font-weight:700;cursor:pointer;font-family:'SF Mono',monospace;transition:background 0.15s; }
+.pb:active { background:#0F1E2E; }
+</style>
+<script>
+var pe = "";
+var PC = "9837";
+function pp(n) {
+  if (pe.length >= 4) return;
+  pe += n;
+  ud();
+  if (pe.length === 4) ck();
+}
+function pc() { pe = ""; ud(); document.getElementById("pin-err").textContent = ""; }
+function ud() {
+  var dots = document.querySelectorAll(".pd");
+  dots.forEach(function(d, i) {
+    d.style.background = i < pe.length ? "#FF4500" : "transparent";
+    d.style.borderColor = i < pe.length ? "#FF4500" : "#1A3A55";
+    d.style.boxShadow = i < pe.length ? "0 0 8px rgba(255,69,0,0.4)" : "none";
+  });
+}
+function ck() {
+  if (pe === PC) {
+    document.getElementById("lock-screen").style.display = "none";
+  } else {
+    document.getElementById("pin-err").textContent = "ACCESS DENIED";
+    setTimeout(function() { pe = ""; ud(); document.getElementById("pin-err").textContent = ""; }, 800);
+  }
+}
+</script>
+
 <div class="app">
   <div class="header">
     <div class="header-top">
