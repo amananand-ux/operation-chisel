@@ -222,7 +222,7 @@ function ck() {
       <div class="title"><span class="title-op">OPERATION </span><span class="title-chisel">CHISEL</span></div>
       <div class="day-badge" id="day-badge">DAY 1 / 50</div>
     </div>
-    <div class="subtitle">07 MAY — 25 JUN 2026</div>
+    <div class="subtitle">08 MAY — 27 JUN 2026</div>
     <div class="progress-wrap">
       <div class="progress-label"><span>MISSION PROGRESS</span><span id="prog-pct">2%</span></div>
       <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:2%"></div></div>
@@ -256,15 +256,11 @@ function ck() {
     <div class="section-title">Recovery Systems</div>
     <div class="metric-row">
       <span class="metric-label">Whoop status</span>
-      <div class="whoop-btns">
-        <button class="whoop-btn" id="w-red" onclick="setWhoop('red')">Red</button>
-        <button class="whoop-btn" id="w-yellow" onclick="setWhoop('yellow')">Yellow</button>
-        <button class="whoop-btn" id="w-green" onclick="setWhoop('green')">Green</button>
-      </div>
+      <div id="whoop-auto-badge" style="font-family:'SF Mono',monospace;font-size:11px;font-weight:700;padding:5px 14px;border-radius:4px;letter-spacing:0.08em;text-transform:uppercase;border:1px solid var(--border2);color:var(--text3);">—</div>
     </div>
     <div class="metric-row">
       <span class="metric-label">Whoop score <span class="metric-unit">%</span></span>
-      <input class="metric-input" id="whoop-score-input" type="number" min="0" max="100" placeholder="72" oninput="saveMeta('whoop_score',this.value)">
+      <input class="metric-input" id="whoop-score-input" type="number" min="0" max="100" placeholder="72" oninput="saveMeta('whoop_score',this.value);updateWhoopAuto();">
     </div>
     <div class="metric-row">
       <span class="metric-label">Sleep <span class="metric-unit">HRS</span></span>
@@ -333,9 +329,9 @@ const sb = createClient(
 );
 
 const USER_ID = 'aman_chisel_2026';
-const START = new Date('2026-05-07');
-const TOTAL = 50;
-const SCHOOL_END = 13;
+const START = new Date('2026-05-08');
+const TOTAL = 51;
+const SCHOOL_END = 12;
 
 const MORNING_HABITS = [
   { id: 'pool', label: 'Pool / Swim' },
@@ -361,9 +357,11 @@ const DAILY_HABITS = [
   { id: 'reading', label: 'Reading', pts: 10 },
   { id: 'sleep_target', label: 'Lights Out by 23:30', pts: 10 },
   { id: 'dog_walk', label: 'Dog Walk', pts: 5 },
-  { id: 'meditation', label: 'Meditation', pts: 2 },
   { id: 'water', label: 'Water 4L+', pts: 2 },
+  { id: 'pm_skincare', label: 'PM Skincare', pts: 1 },
+  { id: 'pm_oral', label: 'PM Oral Care', pts: 1 },
   { id: 'photo', label: 'Progress Photo', pts: 1 },
+  { id: 'meditation', label: 'Meditation', pts: 0 },
   { id: 'meal_plan', label: 'Meal Plan Followed', pts: 0 },
 ];
 
@@ -509,11 +507,11 @@ function renderDayBadges() {
 
 function renderAll() {
   const d = currentDay;
-  const pct = Math.round((d + 1) / TOTAL * 100);
-  document.getElementById('day-badge').textContent = 'DAY ' + (d + 1) + ' / ' + TOTAL;
+  const pct = Math.round(d / (TOTAL - 1) * 100);
+  document.getElementById('day-badge').textContent = 'DAY ' + d + ' / 50';
   document.getElementById('prog-fill').style.width = pct + '%';
   document.getElementById('prog-pct').textContent = pct + '%';
-  document.getElementById('day-label').innerHTML = 'DAY <span>' + String(d + 1).padStart(2,'0') + '</span>';
+  document.getElementById('day-label').innerHTML = 'DAY <span>' + String(d).padStart(2,'0') + '</span>';
   renderDayBadges();
   updateScoreDisplay();
   renderHabitSection(MORNING_HABITS, 'morning-habits', false);
@@ -521,7 +519,7 @@ function renderAll() {
   renderHabitSection(DAILY_HABITS, 'daily-habits', false);
   renderHabitSection(WORK_HABITS, 'work-habits', false);
   renderHabitSection(ABSTINENCE, 'abstinence-habits', true);
-  updateWhoop();
+  updateWhoopAuto();
   const dd = data[d] || {};
   document.getElementById('sleep-input').value = dd.sleep || '';
   document.getElementById('weight-input').value = dd.weight || '';
@@ -540,18 +538,63 @@ function toggle(id) {
   autoSave();
 }
 
-function setWhoop(color) {
-  if (!data[currentDay]) data[currentDay] = {};
-  data[currentDay].whoop = data[currentDay].whoop === color ? null : color;
-  updateWhoop();
-  autoSave();
+function getWhoopColor(score) {
+  if (!score && score !== 0) return null;
+  const s = parseFloat(score);
+  if (s < 33) return 'red';
+  if (s < 66) return 'yellow';
+  return 'green';
 }
 
-function updateWhoop() {
-  const w = (data[currentDay] || {}).whoop;
-  ['red','yellow','green'].forEach(c => {
-    document.getElementById('w-' + c).className = 'whoop-btn' + (w === c ? ' sel-' + c : '');
-  });
+function updateWhoopAuto() {
+  const score = (data[currentDay] || {}).whoop_score;
+  const color = getWhoopColor(score);
+  const badge = document.getElementById('whoop-auto-badge');
+  if (!badge) return;
+  if (!color) {
+    badge.textContent = '—';
+    badge.style.color = 'var(--text3)';
+    badge.style.borderColor = 'var(--border2)';
+    badge.style.background = 'transparent';
+  } else if (color === 'red') {
+    badge.textContent = 'RED';
+    badge.style.color = 'var(--red-alert)';
+    badge.style.borderColor = 'var(--red-alert)';
+    badge.style.background = 'rgba(255,34,34,0.12)';
+  } else if (color === 'yellow') {
+    badge.textContent = 'YELLOW';
+    badge.style.color = 'var(--yellow)';
+    badge.style.borderColor = 'var(--yellow)';
+    badge.style.background = 'rgba(255,215,0,0.12)';
+  } else {
+    badge.textContent = 'GREEN';
+    badge.style.color = 'var(--green)';
+    badge.style.borderColor = 'var(--green)';
+    badge.style.background = 'rgba(0,255,127,0.12)';
+  }
+  // Apply theme accent to header based on whoop colour
+  const header = document.querySelector('.header');
+  if (color === 'red') {
+    header.style.borderBottomColor = 'rgba(255,34,34,0.4)';
+    document.documentElement.style.setProperty('--accent', '#FF2222');
+    document.documentElement.style.setProperty('--accent2', '#FF4444');
+    document.documentElement.style.setProperty('--accent-glow', 'rgba(255,34,34,0.3)');
+  } else if (color === 'yellow') {
+    header.style.borderBottomColor = 'rgba(255,215,0,0.4)';
+    document.documentElement.style.setProperty('--accent', '#FFD700');
+    document.documentElement.style.setProperty('--accent2', '#FFC200');
+    document.documentElement.style.setProperty('--accent-glow', 'rgba(255,215,0,0.3)');
+  } else if (color === 'green') {
+    header.style.borderBottomColor = 'rgba(0,255,127,0.4)';
+    document.documentElement.style.setProperty('--accent', '#00CC66');
+    document.documentElement.style.setProperty('--accent2', '#00FF7F');
+    document.documentElement.style.setProperty('--accent-glow', 'rgba(0,255,127,0.3)');
+  } else {
+    header.style.borderBottomColor = '';
+    document.documentElement.style.setProperty('--accent', '#FF4500');
+    document.documentElement.style.setProperty('--accent2', '#FF6A00');
+    document.documentElement.style.setProperty('--accent-glow', 'rgba(255,69,0,0.3)');
+  }
 }
 
 function saveMeta(key, val) {
@@ -598,7 +641,7 @@ function renderGrid() {
   for (let i = 0; i < TOTAL; i++) {
     const div = document.createElement('div');
     div.className = 'grid-day';
-    div.textContent = i + 1;
+    div.textContent = i;
     if (i === currentDay) div.classList.add('today');
     if (isRestDay(i)) div.classList.add('rest-day');
     else {
@@ -618,7 +661,7 @@ function renderWeekly() {
   c.innerHTML = '';
   for (let w = 0; w < Math.ceil(TOTAL / 7); w++) {
     const start = w * 7, end = Math.min(start + 7, TOTAL);
-    let totalScore = 0, activeDays = 0, poolCount = 0, lissCount = 0;
+    let totalScore = 0, activeDays = 0, poolCount = 0, lissCount = 0, saunaCount = 0, steamCount = 0;
     for (let d = start; d < end; d++) {
       const checks = data[d] && data[d].checks;
       if (checks && Object.values(checks).some(v => v)) {
@@ -627,6 +670,8 @@ function renderWeekly() {
         activeDays++;
         if (checks.pool) poolCount++;
         if (checks.liss) lissCount++;
+        if (checks.sauna) saunaCount++;
+        if (checks.steam) steamCount++;
       }
     }
     const avgScore = activeDays ? Math.round(totalScore / activeDays) : 0;
@@ -634,14 +679,16 @@ function renderWeekly() {
     const days = Array.from({length: end - start}, (_, i) => start + i);
     const hasSchool = days.some(isSchool);
     let badges = hasSchool ? '<span class="badge badge-school">SCHOOL</span>' : '';
-    const poolClass = poolCount >= 5 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
-    const lissClass = lissCount >= 5 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
+    const poolClass = poolCount >= 4 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
+    const lissClass = lissCount >= 4 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
+    const saunaClass = saunaCount >= 3 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
+    const steamClass = steamCount >= 3 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
     const card = document.createElement('div');
     card.className = 'week-card';
     card.innerHTML = '<div class="week-title">WK ' + (w + 1) + ' <span class="week-date">' + fmt(start) + ' – ' + fmt(end - 1) + '</span>' + badges + '</div>' +
       '<div class="week-bar-wrap"><div class="week-bar" style="width:' + Math.min(100, (avgScore / 110) * 100) + '%"></div></div>' +
       '<div class="week-stats"><div class="week-stat"><span>' + avgScore + '</span> avg score</div><div class="week-stat"><span>' + activeDays + '/' + (end - start) + '</span> active</div></div>' +
-      '<div class="week-session-track"><span class="session-pill ' + poolClass + '">Pool ' + poolCount + '/5</span><span class="session-pill ' + lissClass + '">LISS ' + lissCount + '/5</span></div>';
+      '<div class="week-session-track"><span class="session-pill ' + poolClass + '">Pool ' + poolCount + '/5</span><span class="session-pill ' + lissClass + '">LISS ' + lissCount + '/5</span><span class="session-pill ' + saunaClass + '">Sauna ' + saunaCount + '/3</span><span class="session-pill ' + steamClass + '">Steam ' + steamCount + '/3</span></div>';
     c.appendChild(card);
   }
 }
