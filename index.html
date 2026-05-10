@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Operation Chisel</title>
+<title>7 Weeks Lock-In</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
@@ -72,7 +72,6 @@
   .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 4px; letter-spacing: 0.06em; text-transform: uppercase; font-family: 'SF Mono', monospace; }
   .badge-date { background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); }
   .badge-rest { background: var(--bg2); color: var(--text3); border: 1px solid var(--border); }
-  .badge-school { background: rgba(0,191,255,0.1); color: var(--blue); border: 1px solid rgba(0,191,255,0.3); }
 
   .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent); margin: 1.25rem 0 0.5rem; display: flex; align-items: center; gap: 8px; font-family: 'SF Mono', monospace; }
   .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
@@ -160,7 +159,7 @@
 
 <!-- PIN LOCK -->
 <div id="lock-screen" style="position:fixed;inset:0;background:#050A0F;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.75rem;">
-  <div style="font-family:'SF Mono',monospace;font-size:20px;font-weight:700;letter-spacing:0.2em;color:#FF4500;text-shadow:0 0 20px rgba(255,69,0,0.4)">OPERATION CHISEL</div>
+  <div style="font-family:'SF Mono',monospace;font-size:20px;font-weight:700;letter-spacing:0.2em;color:#FF4500;text-shadow:0 0 20px rgba(255,69,0,0.4)">7 WEEKS LOCK-IN</div>
   <div style="font-family:'SF Mono',monospace;font-size:11px;letter-spacing:0.15em;color:#3D6A8A;text-transform:uppercase">Enter Access Code</div>
   <div style="display:flex;gap:14px;">
     <div class="pd" style="width:14px;height:14px;border-radius:50%;border:2px solid #1A3A55;background:transparent;transition:all 0.15s"></div>
@@ -219,10 +218,10 @@ function ck() {
 <div class="app">
   <div class="header">
     <div class="header-top">
-      <div class="title"><span class="title-op">OPERATION </span><span class="title-chisel">CHISEL</span></div>
+      <div class="title"><span class="title-op">7 WEEKS </span><span class="title-chisel">LOCK-IN</span></div>
       <div class="day-badge" id="day-badge">DAY 1 / 50</div>
     </div>
-    <div class="subtitle">08 MAY — 27 JUN 2026</div>
+    <div class="subtitle">10 MAY — 27 JUN 2026</div>
     <div class="progress-wrap">
       <div class="progress-label"><span>MISSION PROGRESS</span><span id="prog-pct">2%</span></div>
       <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:2%"></div></div>
@@ -329,9 +328,9 @@ const sb = createClient(
 );
 
 const USER_ID = 'aman_chisel_2026';
-const START = new Date('2026-05-08');
-const TOTAL = 51;
-const SCHOOL_END = 12;
+const START = new Date('2026-05-10');
+const TOTAL = 49;
+
 
 const MORNING_HABITS = [
   { id: 'pool', label: 'Pool / Swim' },
@@ -452,7 +451,7 @@ function getScoreLabel(s) {
 function getDate(d) { const dt = new Date(START); dt.setDate(dt.getDate() + d); return dt; }
 function getDow(d) { return getDate(d).getDay(); }
 function isRestDay(d) { return getDow(d) === 6; }
-function isSchool(d) { return d < SCHOOL_END; }
+
 
 function updateScoreDisplay() {
   const { score, penalties } = calcScore(currentDay);
@@ -502,16 +501,15 @@ function renderDayBadges() {
   const dateStr = dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
   const db = document.createElement('span'); db.className = 'badge badge-date'; db.textContent = dateStr.toUpperCase(); el.appendChild(db);
   if (isRestDay(currentDay)) { const b = document.createElement('span'); b.className = 'badge badge-rest'; b.textContent = 'ACTIVE REST'; el.appendChild(b); }
-  if (isSchool(currentDay)) { const b = document.createElement('span'); b.className = 'badge badge-school'; b.textContent = 'SCHOOL'; el.appendChild(b); }
 }
 
 function renderAll() {
   const d = currentDay;
-  const pct = Math.round(d / (TOTAL - 1) * 100);
-  document.getElementById('day-badge').textContent = 'DAY ' + d + ' / 50';
+  const pct = Math.round((d + 1) / TOTAL * 100);
+  document.getElementById('day-badge').textContent = 'DAY ' + (d + 1) + ' / 49';
   document.getElementById('prog-fill').style.width = pct + '%';
   document.getElementById('prog-pct').textContent = pct + '%';
-  document.getElementById('day-label').innerHTML = 'DAY <span>' + String(d).padStart(2,'0') + '</span>';
+  document.getElementById('day-label').innerHTML = 'DAY <span>' + String(d + 1).padStart(2,'0') + '</span>';
   renderDayBadges();
   updateScoreDisplay();
   renderHabitSection(MORNING_HABITS, 'morning-habits', false);
@@ -641,7 +639,7 @@ function renderGrid() {
   for (let i = 0; i < TOTAL; i++) {
     const div = document.createElement('div');
     div.className = 'grid-day';
-    div.textContent = i;
+    div.textContent = i + 1;
     if (i === currentDay) div.classList.add('today');
     if (isRestDay(i)) div.classList.add('rest-day');
     else {
@@ -677,8 +675,6 @@ function renderWeekly() {
     const avgScore = activeDays ? Math.round(totalScore / activeDays) : 0;
     const fmt = d => getDate(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     const days = Array.from({length: end - start}, (_, i) => start + i);
-    const hasSchool = days.some(isSchool);
-    let badges = hasSchool ? '<span class="badge badge-school">SCHOOL</span>' : '';
     const poolClass = poolCount >= 4 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
     const lissClass = lissCount >= 4 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
     const saunaClass = saunaCount >= 3 ? 'on-track' : activeDays >= 5 ? 'off-track' : '';
