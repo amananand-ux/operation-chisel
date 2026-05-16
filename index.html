@@ -296,6 +296,7 @@ function ck() {
       <button class="nav-btn" id="next-btn" onclick="changeDay(1)">Next →</button>
     </div>
     <button class="save-btn" id="save-btn" onclick="saveDay()">⬡ COMMIT DAY ⬡</button>
+    <button class="save-btn" onclick="exportData()" style="margin-top:0.5rem;border-color:var(--blue);background:linear-gradient(135deg,rgba(0,191,255,0.1),rgba(0,191,255,0.05));color:var(--blue);box-shadow:0 0 15px rgba(0,191,255,0.2);">↓ EXPORT ALL DATA</button>
     <div class="sync-status" id="sync-status">LOADING...</div>
   </div>
 
@@ -378,6 +379,8 @@ const ABSTINENCE = [
 
 const MORNING_SESSION_IDS = ['pool', 'liss'];
 const EVENING_SESSION_IDS = ['push', 'pull', 'legs', 'run_hiit', 'hyrox', 'long_run'];
+const REST_DAYS = [6]; // Saturday = day of week 6
+const TUESDAY = 2;
 
 let data = {};
 let currentDay = Math.max(0, Math.min(TOTAL - 1, Math.floor((Date.now() - START.getTime()) / 86400000)));
@@ -421,10 +424,23 @@ async function upsertDay(dayNum) {
 function calcScore(d) {
   const checks = (data[d] && data[d].checks) || {};
   let score = 0, penalties = [];
-  const morningSessions = MORNING_SESSION_IDS.filter(id => checks[id]).length;
-  if (morningSessions >= 2) score += 20;
-  else if (morningSessions === 1) score += 10;
-  if (EVENING_SESSION_IDS.some(id => checks[id])) score += 20;
+  const dow = getDow(d);
+  const isSat = dow === 6;
+  const isTue = dow === 2;
+
+  if (isSat) {
+    // Saturday: rest buttons only
+    if (checks['rest_morning']) score += 20;
+    if (checks['rest_evening']) score += 20;
+  } else {
+    // Normal morning
+    const morningSessions = MORNING_SESSION_IDS.filter(id => checks[id]).length;
+    if (morningSessions >= 2) score += 20;
+    else if (morningSessions === 1) score += 10;
+    // Evening: rest_evening OR a real session
+    if (checks['rest_evening'] || EVENING_SESSION_IDS.some(id => checks[id])) score += 20;
+  }
+
   DAILY_HABITS.forEach(h => { if (checks[h.id] && h.pts) score += h.pts; });
   WORK_HABITS.forEach(h => { if (checks[h.id]) score += h.pts; });
   ABSTINENCE.forEach(h => { if (checks[h.id]) { score -= h.penalty; penalties.push('-' + h.penalty + ' ' + h.label); } });
@@ -467,10 +483,10 @@ function updateScoreDisplay() {
   document.getElementById('penalty-display').textContent = penalties.length ? '⚠ PENALTY: ' + penalties.join(' · ') : '';
 }
 
-function renderHabitSection(habits, containerId, isPenalty) {
+function renderHabitSection(habits, containerId, isPenalty, append) {
   const checks = (data[currentDay] && data[currentDay].checks) || {};
   const el = document.getElementById(containerId);
-  el.innerHTML = '';
+  if (!append) el.innerHTML = '';
   habits.forEach(h => {
     const row = document.createElement('div');
     row.className = 'habit-row';
@@ -512,8 +528,15 @@ function renderAll() {
   document.getElementById('day-label').innerHTML = 'DAY <span>' + String(d + 1).padStart(2,'0') + '</span>';
   renderDayBadges();
   updateScoreDisplay();
-  renderHabitSection(MORNING_HABITS, 'morning-habits', false);
-  renderHabitSection(EVENING_HABITS, 'evening-habits', false);
+  const dow = getDow(currentDay);
+  const isSat = dow === 6;
+  const isWed = dow === 3;
+  if (isSat) {
+    renderSaturdayProtocols();
+  } else {
+    renderHabitSection(MORNING_HABITS, 'morning-habits', false);
+    renderEveningSection(isWed);
+  }
   renderHabitSection(DAILY_HABITS, 'daily-habits', false);
   renderHabitSection(WORK_HABITS, 'work-habits', false);
   renderHabitSection(ABSTINENCE, 'abstinence-habits', true);
@@ -718,6 +741,95 @@ async function init() {
   await loadAllDays();
   document.getElementById('sync-status').textContent = 'READY';
   renderAll();
+}
+
+function renderRestBtn(id, label, pts, container) {
+  const checks = (data[currentDay] && data[currentDay].checks) || {};
+  const checked = !!checks[id];
+  const row = document.createElement('div');
+  row.className = 'habit-row';
+  row.style.background = checked ? 'rgba(0,255,127,0.07)' : '';
+  row.style.borderRadius = '6px';
+  row.style.border = checked ? '1px solid rgba(0,255,127,0.3)' : '1px solid var(--border)';
+  row.innerHTML = `
+    <div class="habit-left">
+      <span class="habit-name" style="color:var(--green)">🛌 ${label}</span>
+      <span class="habit-pts">+${pts} pts</span>
+    </div>`;
+  const btn = document.createElement('button');
+  btn.className = 'check-btn' + (checked ? ' checked' : '');
+  btn.style.borderColor = checked ? 'var(--green)' : '';
+  btn.style.background = checked ? 'var(--green)' : '';
+  btn.style.boxShadow = checked ? '0 0 10px rgba(0,255,127,0.4)' : '';
+  btn.onclick = () => toggle(id);
+  row.appendChild(btn);
+  container.appendChild(row);
+}
+
+function renderSaturdayProtocols() {
+  const mEl = document.getElementById('morning-habits');
+  const eEl = document.getElementById('evening-habits');
+  mEl.innerHTML = '';
+  eEl.innerHTML = '';
+  const note = document.createElement('div');
+  note.className = 'section-note';
+  note.style.color = 'var(--green)';
+  note.textContent = 'Rest day — recover, eat well, sleep deep';
+  mEl.appendChild(note);
+  renderRestBtn('rest_morning', 'Morning Rest', 20, mEl);
+  renderRestBtn('rest_evening', 'Evening Rest', 20, eEl);
+}
+
+function renderEveningSection(isWed) {
+  const el = document.getElementById('evening-habits');
+  el.innerHTML = '';
+  if (isWed) {
+    const note = document.createElement('div');
+    note.className = 'section-note';
+    note.style.color = 'var(--blue)';
+    note.textContent = 'Wednesday — evening off recommended';
+    el.appendChild(note);
+    renderRestBtn('rest_evening', 'Evening Rest (Wed)', 20, el);
+    const divider = document.createElement('div');
+    divider.style.cssText = 'font-size:10px;color:var(--text3);font-family:"SF Mono",monospace;padding:0.4rem 0.75rem;letter-spacing:0.06em;text-transform:uppercase;';
+    divider.textContent = '— or log a session —';
+    el.appendChild(divider);
+  }
+  renderHabitSection(EVENING_HABITS, 'evening-habits', false, true);
+}
+
+function exportData() {
+  const exportObj = {
+    exported_at: new Date().toISOString(),
+    sprint: '7 Weeks Lock-In',
+    start_date: '2026-05-10',
+    total_days: TOTAL,
+    days: []
+  };
+  for (let i = 0; i < TOTAL; i++) {
+    const dd = data[i] || {};
+    const { score } = calcScore(i);
+    const dt = getDate(i);
+    exportObj.days.push({
+      day: i + 1,
+      date: dt.toISOString().split('T')[0],
+      dow: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()],
+      score: dd.checks && Object.values(dd.checks).some(v => v) ? score : null,
+      checks: dd.checks || {},
+      whoop: dd.whoop || null,
+      whoop_score: dd.whoop_score || null,
+      sleep: dd.sleep || null,
+      weight: dd.weight || null,
+      journal: dd.journal || null
+    });
+  }
+  const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'operation-chisel-export-' + new Date().toISOString().split('T')[0] + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 init();
